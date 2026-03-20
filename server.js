@@ -7,6 +7,7 @@ import { userRouter } from './src/router/userRouter.js'
 import { orgRouter } from './src/router/orgRouter.js'
 import { campaignRouter } from './src/router/campaignRouter.js'
 import { voteRouter } from './src/router/voteRouter.js'
+import { startCronJobs } from './src/jobs/cronJobs.js'
 
 dotenv.config()
 
@@ -28,6 +29,7 @@ app.use('/api/votes', voteRouter)
 // ── Health Check ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.json({ success: true, message: 'VoteApp API is running.' })
+  
 })
 
 // ── 404 Handler ───────────────────────────────────────────────────────────────
@@ -54,4 +56,5 @@ app.use((err, req, res, next) => {
 
 app.listen(port, () => {
   console.log(`VoteApp API listening on port ${port}`)
+  startCronJobs()
 })

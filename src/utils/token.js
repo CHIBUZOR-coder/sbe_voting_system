@@ -1,17 +1,33 @@
 import jwt from 'jsonwebtoken'
 
 /**
- * Generates a signed JWT for a logged-in user.
+ * Generates a short-lived ACCESS TOKEN (15 minutes).
+ * Sent with every API request in the Authorization header.
  *
- * Payload contains: { id, email, role }
- * Expires in 7 days by default.
+ * Payload: { id, email, role }
  *
  * Example:
- *   const token = generateToken({ id: 1, email: 'a@b.com', role: 'VOTER' })
+ *   const accessToken = generateAccessToken({ id: 1, email: 'a@b.com', role: 'VOTER' })
  */
-export const generateToken = payload => {
+export const generateAccessToken = payload => {
   return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || '7d'
+    expiresIn: '15m'
+  })
+}
+
+/**
+ * Generates a long-lived REFRESH TOKEN (7 days).
+ * Used only to get a new access token via POST /api/users/refresh.
+ * Stored in the database — can be invalidated on logout.
+ *
+ * Payload: { id }  — minimal payload for security
+ *
+ * Example:
+ *   const refreshToken = generateRefreshToken({ id: 1 })
+ */
+export const generateRefreshToken = payload => {
+  return jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {
+    expiresIn: '7d'
   })
 }
 
@@ -19,7 +35,6 @@ export const generateToken = payload => {
  * Generates a short-lived token used for:
  *   - Email verification
  *   - Password reset links
- *
  * Expires in 1 hour.
  *
  * Example:
@@ -30,13 +45,28 @@ export const generateShortToken = payload => {
 }
 
 /**
- * Verifies any JWT and returns the decoded payload.
- * Throws if the token is invalid or expired.
+ * Verifies an ACCESS TOKEN or short-lived token.
+ * Throws if invalid or expired.
  *
  * Example:
- *   const decoded = verifyToken(token)
- *   console.log(decoded.id, decoded.role)
+ *   const decoded = verifyAccessToken(token)
  */
-export const verifyToken = token => {
+export const verifyAccessToken = token => {
   return jwt.verify(token, process.env.JWT_SECRET)
 }
+
+/**
+ * Verifies a REFRESH TOKEN.
+ * Uses a separate secret so a compromised access token
+ * cannot be used to forge a refresh token.
+ *
+ * Example:
+ *   const decoded = verifyRefreshToken(token)
+ */
+export const verifyRefreshToken = token => {
+  return jwt.verify(token, process.env.JWT_REFRESH_SECRET)
+}
+
+// Alias — keeps any existing verifyToken calls working
+export const verifyToken = verifyAccessToken
+

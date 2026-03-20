@@ -1,7 +1,6 @@
 import bcrypt from 'bcrypt'
 import prisma from '../lib/prisma.js'
 import {
-  generateAccessToken,
   generateRefreshToken,
   generateShortToken,
   verifyToken,
@@ -484,7 +483,6 @@ export const getProfile = async (req, res) => {
       .json({ success: false, message: 'Internal server error.' })
   }
 }
-
 
 // ─── REFRESH TOKEN ────────────────────────────────────────────────────────────
 /**
