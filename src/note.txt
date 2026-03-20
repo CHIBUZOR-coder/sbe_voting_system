@@ -15,3 +15,22 @@ PATCH  /api/orgs/:id                 ← update org name/description/logo
 GET    /api/orgs/:id/members         ← list members (members only)
 POST   /api/orgs/:id/members         ← add member by email
 DELETE /api/orgs/:id/members/:userId ← remove member
+
+
+
+#campaigns
+# Public
+GET    /api/campaigns                        ← list active/closed campaigns
+GET    /api/campaigns/:id                    ← single campaign + candidates + vote counts
+
+# ORG_ADMIN / SUPER_ADMIN only
+POST   /api/campaigns                        ← create campaign
+PATCH  /api/campaigns/:id                    ← update title/description/dates (DRAFT only)
+PATCH  /api/campaigns/:id/status             ← ACTIVE → CLOSED → CANCELLED
+
+# Candidate management (DRAFT only)
+POST   /api/campaigns/:id/candidates         ← nominate a user + upload photo
+DELETE /api/campaigns/:id/candidates/:cId    ← remove candidate
+
+# Invite list (INVITE_ONLY campaigns only)
+POST   /api/campaigns/:id/voters             ← add user to invite list by email

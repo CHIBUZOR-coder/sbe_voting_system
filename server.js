@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser'
 
 import { userRouter } from './src/router/userRouter.js'
 import { orgRouter } from './src/router/orgRouter.js'
+import { campaignRouter } from './src/router/campaignRouter.js'
 
 dotenv.config()
 
@@ -20,6 +21,7 @@ app.use(cookieParser())
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/users', userRouter)
 app.use('/api/orgs', orgRouter)
+app.use('/api/campaigns', campaignRouter)
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
