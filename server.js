@@ -3,6 +3,8 @@ import dotenv from 'dotenv'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 
+import swaggerUi from 'swagger-ui-express'
+import swaggerSpec from './src/config/swagger.js'
 import { userRouter } from './src/router/userRouter.js'
 import { orgRouter } from './src/router/orgRouter.js'
 import { campaignRouter } from './src/router/campaignRouter.js'
@@ -20,6 +22,9 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
 
+// ── Swagger Docs ──────────────────────────────────────────────────────────────
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/users', userRouter)
 app.use('/api/orgs', orgRouter)
@@ -29,7 +34,6 @@ app.use('/api/votes', voteRouter)
 // ── Health Check ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
   res.json({ success: true, message: 'VoteApp API is running.' })
-  
 })
 
 // ── 404 Handler ───────────────────────────────────────────────────────────────

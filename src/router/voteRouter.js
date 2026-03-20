@@ -8,13 +8,136 @@ import {
 
 const voteRouter = express.Router()
 
-// ── Cast a vote — must be logged in and verified ──────────────────────────────
+/**
+ * @swagger
+ * tags:
+ *   name: Voting
+ *   description: Cast votes and view real-time results
+ */
+
+/**
+ * @swagger
+ * /api/votes/{campaignId}:
+ *   post:
+ *     summary: Cast a vote in a campaign
+ *     tags: [Voting]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: campaignId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             oneOf:
+ *               - type: object
+ *                 description: SINGLE_CHOICE — pick one candidate
+ *                 required: [candidateId]
+ *                 properties:
+ *                   candidateId:
+ *                     type: integer
+ *                     example: 3
+ *               - type: object
+ *                 description: MULTIPLE_CHOICE — pick one or more candidates
+ *                 required: [candidateIds]
+ *                 properties:
+ *                   candidateIds:
+ *                     type: array
+ *                     items:
+ *                       type: integer
+ *                     example: [3, 5]
+ *     responses:
+ *       201:
+ *         description: Vote cast successfully
+ *       400:
+ *         description: Already voted, campaign not active, or invalid candidate
+ *       403:
+ *         description: Access restricted or self-vote attempt
+ */
 voteRouter.post('/:campaignId', protect, requireVerified, castVote)
 
-// ── Check if current user has voted in a campaign ─────────────────────────────
+/**
+ * @swagger
+ * /api/votes/{campaignId}/status:
+ *   get:
+ *     summary: Check if the current user has already voted in a campaign
+ *     tags: [Voting]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: campaignId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Vote status
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     hasVoted:
+ *                       type: boolean
+ *                       example: true
+ *                     votedAt:
+ *                       type: string
+ *                       format: date-time
+ *                       nullable: true
+ */
 voteRouter.get('/:campaignId/status', protect, getVoteStatus)
 
-// ── Get real-time results — optional auth (controller handles access rules) ───
+/**
+ * @swagger
+ * /api/votes/{campaignId}/results:
+ *   get:
+ *     summary: Get real-time vote results for a campaign
+ *     tags: [Voting]
+ *     parameters:
+ *       - in: path
+ *         name: campaignId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Real-time results sorted by votes descending
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     campaign:
+ *                       $ref: '#/components/schemas/Campaign'
+ *                     totalVoters:
+ *                       type: integer
+ *                       example: 150
+ *                     totalVotesCast:
+ *                       type: integer
+ *                       example: 150
+ *                     candidates:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Candidate'
+ *       403:
+ *         description: Access restricted
+ */
 voteRouter.get(
   '/:campaignId/results',
   (req, res, next) => {
