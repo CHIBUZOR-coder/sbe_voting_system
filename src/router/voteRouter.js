@@ -1,5 +1,6 @@
 import express from 'express'
 import { protect, requireVerified } from '../middleware/auth.js'
+import { voteLimiter } from '../middleware/rateLimiter.js'
 import {
   castVote,
   getResults,
@@ -58,8 +59,10 @@ const voteRouter = express.Router()
  *         description: Already voted, campaign not active, or invalid candidate
  *       403:
  *         description: Access restricted or self-vote attempt
+ *       429:
+ *         description: Too many voting attempts — rate limit exceeded
  */
-voteRouter.post('/:campaignId', protect, requireVerified, castVote)
+voteRouter.post('/:campaignId', voteLimiter, protect, requireVerified, castVote)
 
 /**
  * @swagger
@@ -95,6 +98,8 @@ voteRouter.post('/:campaignId', protect, requireVerified, castVote)
  *                       type: string
  *                       format: date-time
  *                       nullable: true
+ *       401:
+ *         description: Unauthorized
  */
 voteRouter.get('/:campaignId/status', protect, getVoteStatus)
 
@@ -135,6 +140,8 @@ voteRouter.get('/:campaignId/status', protect, getVoteStatus)
  *                       type: array
  *                       items:
  *                         $ref: '#/components/schemas/Candidate'
+ *       401:
+ *         description: Unauthorized — required for restricted campaigns
  *       403:
  *         description: Access restricted
  */

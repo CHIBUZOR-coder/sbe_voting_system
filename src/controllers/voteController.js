@@ -1,5 +1,6 @@
 import prisma from '../lib/prisma.js'
 import { sendVoteConfirmationEmail } from '../utils/email.js'
+import { getIO } from '../lib/socket.js'
 
 // ─── CAST VOTE ────────────────────────────────────────────────────────────────
 /**
@@ -100,7 +101,6 @@ export const castVote = async (req, res) => {
     }
 
     // ── Check if user has already voted ─────────────────────
-    // VoteRecord tracks THAT a user voted — without linking to WHO they voted for
     const alreadyVoted = await prisma.voteRecord.findUnique({
       where: {
         userId_campaignId: {
@@ -118,7 +118,6 @@ export const castVote = async (req, res) => {
     }
 
     // ── Build the list of candidateIds to vote for ───────────
-    // Normalize both SINGLE_CHOICE and MULTIPLE_CHOICE into one array
     let selectedIds = []
 
     if (campaign.votingType === 'SINGLE_CHOICE') {
@@ -142,17 +141,15 @@ export const castVote = async (req, res) => {
           message: 'candidateIds array is required for multiple choice voting.'
         })
       }
-
-      // Remove duplicates
       selectedIds = [...new Set(candidateIds.map(id => parseInt(id)))]
     }
 
     // ── Validate all selected candidates belong to this campaign ─
     const campaignCandidateIds = campaign.candidates.map(c => c.id)
-
     const invalidIds = selectedIds.filter(
       id => !campaignCandidateIds.includes(id)
     )
+
     if (invalidIds.length > 0) {
       return res.status(400).json({
         success: false,
@@ -163,7 +160,6 @@ export const castVote = async (req, res) => {
     }
 
     // ── Self-vote prevention ─────────────────────────────────
-    // Check if the voter is a candidate in this campaign
     const voterAsCandidate = campaign.candidates.find(
       c => c.userId === req.user.id
     )
@@ -176,19 +172,13 @@ export const castVote = async (req, res) => {
     }
 
     // ── Cast votes in a transaction ──────────────────────────
-    // A transaction ensures:
-    // - VoteRecord is created (proves user voted)
-    // - All Vote rows are created (anonymous candidate tallies)
-    // - If anything fails, everything rolls back — no partial votes
     await prisma.$transaction([
-      // Record THAT the user voted (no candidate link = anonymous)
       prisma.voteRecord.create({
         data: {
           userId: req.user.id,
           campaignId: parseInt(campaignId)
         }
       }),
-      // Create one Vote row per selected candidate (no userId = anonymous)
       ...selectedIds.map(cId =>
         prisma.vote.create({
           data: {
@@ -199,10 +189,68 @@ export const castVote = async (req, res) => {
       )
     ])
 
+    // ── Emit real-time update via Socket.io ──────────────────
+    // After the vote is saved, we immediately fetch the latest
+    // results from the DB and push them to all clients watching
+    // this campaign's results page.
+    //
+    // How it works:
+    // 1. We query the updated vote counts for all candidates
+    // 2. We call io.to('campaign:3').emit('vote_update', results)
+    // 3. Every browser in room 'campaign:3' instantly receives
+    //    the new results and can update the UI without refreshing
+    try {
+      const updatedCampaign = await prisma.campaign.findUnique({
+        where: { id: parseInt(campaignId) },
+        include: {
+          candidates: {
+            include: {
+              user: { select: { id: true, name: true, avatarUrl: true } },
+              _count: { select: { votes: true } }
+            }
+          },
+          _count: { select: { voteRecords: true } }
+        }
+      })
+
+      const totalVoters = updatedCampaign._count.voteRecords
+      const totalVotesCast = updatedCampaign.candidates.reduce(
+        (sum, c) => sum + c._count.votes,
+        0
+      )
+
+      const rankedCandidates = updatedCampaign.candidates
+        .map(c => ({
+          id: c.id,
+          name: c.user.name,
+          avatarUrl: c.user.avatarUrl,
+          photoUrl: c.photoUrl,
+          votes: c._count.votes,
+          percentage:
+            totalVoters > 0
+              ? ((c._count.votes / totalVoters) * 100).toFixed(1)
+              : '0.0'
+        }))
+        .sort((a, b) => b.votes - a.votes)
+
+      // Push to all clients in this campaign's room
+      // 'vote_update' is the event name the frontend listens for
+      getIO()
+        .to(`campaign:${campaignId}`)
+        .emit('vote_update', {
+          campaignId: parseInt(campaignId),
+          totalVoters,
+          totalVotesCast,
+          candidates: rankedCandidates
+        })
+    } catch (socketError) {
+      // If the socket emission fails, we don't want to affect
+      // the vote response. The vote was already saved successfully.
+      console.error('[SOCKET] Failed to emit vote_update:', socketError.message)
+    }
+
     // ── Send vote confirmation email ─────────────────────────
-    // Fire and forget — we don't await this so a slow email
-    // server never delays the vote response to the user.
-    // If it fails, we just log the error silently.
+    // Fire and forget — does not block the response
     sendVoteConfirmationEmail(req.user, campaign).catch(err =>
       console.error('[EMAIL] Vote confirmation failed:', err.message)
     )
@@ -212,7 +260,6 @@ export const castVote = async (req, res) => {
       message: 'Your vote has been cast successfully.'
     })
   } catch (error) {
-    // Catch unique constraint violation — race condition double vote attempt
     if (error.code === 'P2002') {
       return res.status(400).json({
         success: false,
@@ -230,13 +277,8 @@ export const castVote = async (req, res) => {
 /**
  * GET /api/votes/:campaignId/results
  *
- * Returns real-time vote counts per candidate, sorted by votes descending.
- * Access control same as viewing the campaign.
- *
- * Response includes:
- * - Campaign info
- * - Total votes cast
- * - Each candidate with their vote count and percentage
+ * Returns the current vote counts — used for the initial page load.
+ * After that, the frontend switches to Socket.io for live updates.
  */
 export const getResults = async (req, res) => {
   try {
@@ -250,9 +292,7 @@ export const getResults = async (req, res) => {
         },
         candidates: {
           include: {
-            user: {
-              select: { id: true, name: true, avatarUrl: true }
-            },
+            user: { select: { id: true, name: true, avatarUrl: true } },
             _count: { select: { votes: true } }
           }
         },
@@ -319,15 +359,11 @@ export const getResults = async (req, res) => {
 
     // ── Build results ────────────────────────────────────────
     const totalVoters = campaign._count.voteRecords
-
-    // For MULTIPLE_CHOICE, total votes cast can exceed total voters
-    // (a voter can vote for multiple candidates)
     const totalVotesCast = campaign.candidates.reduce(
       (sum, c) => sum + c._count.votes,
       0
     )
 
-    // Sort candidates by vote count descending (highest first)
     const rankedCandidates = campaign.candidates
       .map(candidate => ({
         id: candidate.id,
@@ -335,8 +371,6 @@ export const getResults = async (req, res) => {
         avatarUrl: candidate.user.avatarUrl,
         photoUrl: candidate.photoUrl,
         votes: candidate._count.votes,
-        // Percentage based on total voters (not total votes cast)
-        // so percentages always add up to 100% for SINGLE_CHOICE
         percentage:
           totalVoters > 0
             ? ((candidate._count.votes / totalVoters) * 100).toFixed(1)
@@ -373,9 +407,6 @@ export const getResults = async (req, res) => {
 /**
  * GET /api/votes/:campaignId/status
  * Protected — returns whether the logged-in user has already voted
- *
- * Useful for the frontend to show "You have voted" state
- * without revealing who they voted for.
  */
 export const getVoteStatus = async (req, res) => {
   try {

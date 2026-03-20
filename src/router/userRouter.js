@@ -1,6 +1,7 @@
 import express from 'express'
 import upload from '../middleware/upload.js'
 import { protect } from '../middleware/auth.js'
+import { authLimiter, passwordLimiter } from '../middleware/rateLimiter.js'
 import {
   register,
   verifyEmail,
@@ -55,7 +56,7 @@ const userRouter = express.Router()
  *       400:
  *         description: Validation error or email already exists
  */
-userRouter.post('/register', upload.single('avatar'), register)
+userRouter.post('/register', authLimiter, upload.single('avatar'), register)
 
 /**
  * @swagger
@@ -121,7 +122,7 @@ userRouter.get('/verify-email', verifyEmail)
  *       403:
  *         description: Email not verified
  */
-userRouter.post('/login', login)
+userRouter.post('/login', authLimiter, login)
 
 /**
  * @swagger
@@ -177,7 +178,7 @@ userRouter.post('/refresh', refresh)
  *       200:
  *         description: Reset email sent (always returns 200 for security)
  */
-userRouter.post('/forgot-password', forgotPassword)
+userRouter.post('/forgot-password', passwordLimiter, forgotPassword)
 
 /**
  * @swagger
@@ -204,7 +205,7 @@ userRouter.post('/forgot-password', forgotPassword)
  *       400:
  *         description: Invalid or expired token
  */
-userRouter.post('/reset-password', resetPassword)
+userRouter.post('/reset-password', passwordLimiter, resetPassword)
 
 /**
  * @swagger

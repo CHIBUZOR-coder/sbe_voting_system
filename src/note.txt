@@ -36,6 +36,51 @@ DELETE /api/campaigns/:id/candidates/:cId    ← remove candidate
 POST   /api/campaigns/:id/voters             ← add user to invite list by email
 
 
+
+
+
+
+##All
+# Auth
+POST   /api/users/register
+GET    /api/users/verify-email?token=xxx
+POST   /api/users/login
+POST   /api/users/refresh
+POST   /api/users/logout
+POST   /api/users/forgot-password
+POST   /api/users/reset-password
+GET    /api/users/profile
+PATCH  /api/users/avatar
+
+# Organizations
+GET    /api/orgs
+GET    /api/orgs/:slug
+POST   /api/orgs
+PATCH  /api/orgs/:id
+GET    /api/orgs/admin/pending
+PATCH  /api/orgs/:id/approve
+PATCH  /api/orgs/:id/reject
+GET    /api/orgs/:id/members
+POST   /api/orgs/:id/members
+DELETE /api/orgs/:id/members/:userId
+
+# Campaigns
+GET    /api/campaigns
+GET    /api/campaigns/:id
+POST   /api/campaigns
+PATCH  /api/campaigns/:id
+PATCH  /api/campaigns/:id/status
+POST   /api/campaigns/:id/candidates
+DELETE /api/campaigns/:id/candidates/:candidateId
+POST   /api/campaigns/:id/voters
+
+# Voting
+POST   /api/votes/:campaignId
+GET    /api/votes/:campaignId/status
+GET    /api/votes/:campaignId/results
+
+# Docs
+GET    /api/docs
 #Admin Details
 SUPER_ADMIN_NAME="Chibuzor"
 SUPER_ADMIN_EMAIL="chibuzormekalam@gmail.com"
