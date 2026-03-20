@@ -1,40 +1,471 @@
+import bcrypt from 'bcrypt'
 import prisma from '../lib/prisma.js'
-export const registerUser = async (req, res) => {
-  const { email, name } = req.body
+import {
+  generateToken,
+  generateShortToken,
+  verifyToken
+} from '../utils/token.js'
+import {
+  sendVerificationEmail,
+  sendPasswordResetEmail
+} from '../utils/email.js'
+import {
+  uploadToCloudinary,
+  deleteFromCloudinary
+} from '../utils/cloudinaryHelper.js'
+
+// ─── REGISTER ────────────────────────────────────────────────────────────────
+/**
+ * POST /auth/register
+ * Body: { name, email, password }
+ * File (optional): avatar image via multipart/form-data field name "avatar"
+ *
+ * - Hashes password with bcrypt
+ * - Optionally uploads avatar to Cloudinary
+ * - Saves user to DB
+ * - Sends verification email
+ */
+export const register = async (req, res) => {
   try {
-    //
-    const existingUser = await prisma.user.findUnique({
-      where: {
-        email
+    const { name, email, password } = req.body
+
+    // ── Validation ──────────────────────────────────────────
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, email and password are required.'
+      })
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters.'
+      })
+    }
+
+    // ── Check duplicate email ────────────────────────────────
+    const existingUser = await prisma.user.findUnique({ where: { email } })
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'An account with this email already exists.'
+      })
+    }
+
+    // ── Hash password ────────────────────────────────────────
+    const hashedPassword = await bcrypt.hash(password, 12)
+
+    // ── Handle optional avatar upload ────────────────────────
+    let avatarUrl = null
+    let avatarPublicId = null
+
+    if (req.file) {
+      const uploaded = await uploadToCloudinary(
+        req.file.buffer,
+        'users/avatars'
+      )
+      avatarUrl = uploaded.url
+      avatarPublicId = uploaded.publicId
+    }
+
+    // ── Create user ──────────────────────────────────────────
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+        avatarUrl,
+        avatarPublicId
       }
     })
 
-    if (existingUser) {
-      return res
-        .status(400)
-        .json({ success: false, message: 'User Already exist in database' })
-    }
+    // ── Send verification email ──────────────────────────────
+    const verifyToken_ = generateShortToken({
+      id: user.id,
+      purpose: 'verify-email'
+    })
 
-    const newUser = await prisma.user.create({ data: { name, email } })
+    // Store token on the user record
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { verifyToken: verifyToken_ }
+    })
 
-    if (!newUser) {
-      return res
-        .status(400)
-        .json({ success: false, message: 'unable to create user' })
-    }
+    await sendVerificationEmail(user, verifyToken_)
 
     return res.status(201).json({
       success: true,
-      message: 'User created successfully',
-      data: newUser
+      message:
+        'Registration successful. Please check your email to verify your account.',
+      data: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        avatarUrl: user.avatarUrl
+      }
     })
   } catch (error) {
-    console.log('error:', error.message)
+    console.error('register error:', error.message)
     return res
       .status(500)
-      .json({
+      .json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+// ─── VERIFY EMAIL ─────────────────────────────────────────────────────────────
+/**
+ * GET /auth/verify-email?token=xxx
+ *
+ * - Decodes the short-lived JWT
+ * - Checks the token matches what is stored on the user
+ * - Marks the user as verified and clears the token
+ */
+export const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.query
+
+    if (!token) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Token is required.' })
+    }
+
+    // Decode token
+    let decoded
+    try {
+      decoded = verifyToken(token)
+    } catch {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid or expired token.' })
+    }
+
+    if (decoded.purpose !== 'verify-email') {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid token purpose.' })
+    }
+
+    // Find user and confirm stored token matches
+    const user = await prisma.user.findUnique({ where: { id: decoded.id } })
+
+    if (!user || user.verifyToken !== token) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid or already used token.' })
+    }
+
+    if (user.isVerified) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Email is already verified.' })
+    }
+
+    // Mark as verified, clear token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { isVerified: true, verifyToken: null }
+    })
+
+    return res.status(200).json({
+      success: true,
+      message: 'Email verified successfully. You can now log in.'
+    })
+  } catch (error) {
+    console.error('verifyEmail error:', error.message)
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
+/**
+ * POST /auth/login
+ * Body: { email, password }
+ *
+ * - Checks user exists and is verified
+ * - Compares password with bcrypt
+ * - Returns a signed JWT
+ */
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body
+
+    if (!email || !password) {
+      return res.status(400).json({
         success: false,
-        message: 'internal server error, please try again later'
+        message: 'Email and password are required.'
       })
+    }
+
+    // Fetch user including password for comparison
+    const user = await prisma.user.findUnique({ where: { email } })
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password.'
+      })
+    }
+
+    // Check email is verified before allowing login
+    if (!user.isVerified) {
+      return res.status(403).json({
+        success: false,
+        message: 'Please verify your email before logging in.'
+      })
+    }
+
+    // Compare password
+    const isMatch = await bcrypt.compare(password, user.password)
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password.'
+      })
+    }
+
+    // Generate JWT
+    const token = generateToken({
+      id: user.id,
+      email: user.email,
+      role: user.role
+    })
+
+    return res.status(200).json({
+      success: true,
+      message: 'Login successful.',
+      token,
+      data: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatarUrl: user.avatarUrl
+      }
+    })
+  } catch (error) {
+    console.error('login error:', error.message)
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+// ─── FORGOT PASSWORD ──────────────────────────────────────────────────────────
+/**
+ * POST /auth/forgot-password
+ * Body: { email }
+ *
+ * - Finds user by email
+ * - Generates a reset token (short-lived JWT) and stores it on the user
+ * - Sends reset link via email
+ *
+ * NOTE: Always returns 200 even if email not found (security best practice —
+ * prevents email enumeration attacks)
+ */
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body
+
+    if (!email) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Email is required.' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } })
+
+    // Silently return OK even if user not found
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        message: 'If that email exists, a reset link has been sent.'
+      })
+    }
+
+    const resetToken = generateShortToken({
+      id: user.id,
+      purpose: 'reset-password'
+    })
+    const resetTokenExp = new Date(Date.now() + 60 * 60 * 1000) // 1 hour from now
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { resetToken, resetTokenExp }
+    })
+
+    await sendPasswordResetEmail(user, resetToken)
+
+    return res.status(200).json({
+      success: true,
+      message: 'If that email exists, a reset link has been sent.'
+    })
+  } catch (error) {
+    console.error('forgotPassword error:', error.message)
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+// ─── RESET PASSWORD ───────────────────────────────────────────────────────────
+/**
+ * POST /auth/reset-password
+ * Body: { token, newPassword }
+ *
+ * - Verifies the reset token
+ * - Checks token matches stored token and hasn't expired
+ * - Hashes and saves new password, clears reset fields
+ */
+export const resetPassword = async (req, res) => {
+  try {
+    const { token, newPassword } = req.body
+
+    if (!token || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Token and new password are required.'
+      })
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters.'
+      })
+    }
+
+    // Decode token
+    let decoded
+    try {
+      decoded = verifyToken(token)
+    } catch {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid or expired token.' })
+    }
+
+    if (decoded.purpose !== 'reset-password') {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid token purpose.' })
+    }
+
+    // Find user and confirm token matches and hasn't expired
+    const user = await prisma.user.findUnique({ where: { id: decoded.id } })
+
+    if (
+      !user ||
+      user.resetToken !== token ||
+      !user.resetTokenExp ||
+      new Date() > user.resetTokenExp
+    ) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Invalid or expired reset token.' })
+    }
+
+    // Hash new password and clear reset fields
+    const hashedPassword = await bcrypt.hash(newPassword, 12)
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExp: null
+      }
+    })
+
+    return res.status(200).json({
+      success: true,
+      message:
+        'Password reset successful. You can now log in with your new password.'
+    })
+  } catch (error) {
+    console.error('resetPassword error:', error.message)
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+// ─── UPDATE AVATAR ────────────────────────────────────────────────────────────
+/**
+ * PATCH /auth/avatar
+ * Protected route — requires Bearer token
+ * File: avatar image via multipart/form-data field name "avatar"
+ *
+ * - Deletes old Cloudinary image (if exists)
+ * - Uploads new image
+ * - Updates user record
+ */
+export const updateAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'No image file provided.' })
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } })
+
+    // Delete old avatar from Cloudinary before uploading the new one
+    await deleteFromCloudinary(user.avatarPublicId)
+
+    // Upload new avatar
+    const { url, publicId } = await uploadToCloudinary(
+      req.file.buffer,
+      'users/avatars'
+    )
+
+    const updated = await prisma.user.update({
+      where: { id: user.id },
+      data: { avatarUrl: url, avatarPublicId: publicId },
+      select: { id: true, name: true, email: true, avatarUrl: true }
+    })
+
+    return res.status(200).json({
+      success: true,
+      message: 'Avatar updated successfully.',
+      data: updated
+    })
+  } catch (error) {
+    console.error('updateAvatar error:', error.message)
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+// ─── GET PROFILE ──────────────────────────────────────────────────────────────
+/**
+ * GET /auth/profile
+ * Protected route — returns the logged-in user's profile
+ */
+export const getProfile = async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isVerified: true,
+        avatarUrl: true,
+        createdAt: true
+      }
+    })
+
+    return res.status(200).json({ success: true, data: user })
+  } catch (error) {
+    console.error('getProfile error:', error.message)
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal server error.' })
   }
 }
