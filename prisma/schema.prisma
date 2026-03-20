@@ -11,10 +11,221 @@ datasource db {
 generator client {
   provider = "prisma-client-js"
 }
+// ============================================================
+// VOTING SYSTEM - PRISMA SCHEMA
+// ============================================================
+
+
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  VOTER      // default — any registered user
+  ORG_ADMIN  // user who created/manages an organization
+  SUPER_ADMIN // platform-level admin, approves orgs
+}
+
+enum OrgStatus {
+  PENDING   // just created, awaiting approval
+  APPROVED  // live, can create campaigns
+  REJECTED  // denied by super admin
+}
+
+enum AccessType {
+  PUBLIC           // any registered user can vote
+  ORG_MEMBERS_ONLY // only members of the linked org
+  INVITE_ONLY      // only users explicitly added to CampaignVoter
+}
+
+enum VotingType {
+  SINGLE_CHOICE   // voter picks exactly one candidate
+  MULTIPLE_CHOICE // voter picks one or more candidates
+}
+
+enum CampaignStatus {
+  DRAFT     // being set up, no votes yet
+  ACTIVE    // voting is open
+  CLOSED    // voting ended, results visible
+  CANCELLED // shut down before or during voting
+}
+
+// ============================================================
+// USER
+// ============================================================
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
+  id              Int      @id @default(autoincrement())
+  email           String   @unique
+  name            String
+  password        String   // bcrypt hashed
+  role            Role     @default(VOTER)
+  isVerified      Boolean  @default(false)
+  verifyToken     String?  // email verification token
+  resetToken      String?  // password reset token
+  resetTokenExp   DateTime? // reset token expiry
+
+  // Cloudinary — optional, can be added after registration
+  avatarUrl       String?
+  avatarPublicId  String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  createdOrgs     Organization[]  @relation("OrgCreator")
+  orgMemberships  OrgMember[]
+  voteRecords     VoteRecord[]    // tracks THAT the user voted (anonymous)
+  candidacies     Candidate[]     // campaigns this user is a candidate in
+  allowedCampaigns CampaignVoter[] // invite-only campaigns they are allowed to vote in
+}
+
+// ============================================================
+// ORGANIZATION
+// ============================================================
+
+model Organization {
+  id             Int       @id @default(autoincrement())
+  name           String
+  slug           String    @unique // e.g. "lagos-state-govt", "first-bank-ng"
+  description    String?
+  status         OrgStatus @default(PENDING) // needs SUPER_ADMIN approval
+
+  // Cloudinary — optional
+  logoUrl        String?
+  logoPublicId   String?
+
+  createdById    Int
+  createdBy      User      @relation("OrgCreator", fields: [createdById], references: [id])
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  members        OrgMember[]
+  campaigns      Campaign[]
+}
+
+// ============================================================
+// ORGANIZATION MEMBERSHIP
+// ============================================================
+
+model OrgMember {
+  id             Int          @id @default(autoincrement())
+  userId         Int
+  organizationId Int
+  joinedAt       DateTime     @default(now())
+
+  user           User         @relation(fields: [userId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([userId, organizationId]) // a user can only be a member once per org
+}
+
+// ============================================================
+// CAMPAIGN
+// ============================================================
+
+model Campaign {
+  id             Int            @id @default(autoincrement())
+  title          String
+  description    String?
+  accessType     AccessType     @default(PUBLIC)
+  votingType     VotingType     @default(SINGLE_CHOICE)
+  status         CampaignStatus @default(DRAFT)
+  startDate      DateTime
+  endDate        DateTime
+
+  // Optional — null means it is a standalone public campaign
+  organizationId Int?
+  organization   Organization?  @relation(fields: [organizationId], references: [id])
+
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  // Relations
+  candidates     Candidate[]
+  voteRecords    VoteRecord[]   // who voted (anonymous — no candidate link here)
+  votes          Vote[]         // the actual candidate vote counts
+  allowedVoters  CampaignVoter[] // for INVITE_ONLY campaigns
+}
+
+// ============================================================
+// CANDIDATE
+// (must be a registered User — photo is required)
+// ============================================================
+
+model Candidate {
+  id              Int      @id @default(autoincrement())
+  campaignId      Int
+  userId          Int      // must be a registered user
+
+  // Cloudinary — REQUIRED for candidates
+  photoUrl        String
+  photoPublicId   String
+
+  createdAt       DateTime @default(now())
+
+  campaign        Campaign @relation(fields: [campaignId], references: [id])
+  user            User     @relation(fields: [userId], references: [id])
+  votes           Vote[]
+
+  @@unique([userId, campaignId]) // a user can only be a candidate once per campaign
+}
+
+// ============================================================
+// VOTE
+// Stores the actual candidate choice — NOT linked to a user
+// This is what makes voting anonymous.
+// To find total votes for a candidate: COUNT votes by candidateId
+// ============================================================
+
+model Vote {
+  id          Int       @id @default(autoincrement())
+  campaignId  Int
+  candidateId Int
+  castedAt    DateTime  @default(now())
+
+  campaign    Campaign  @relation(fields: [campaignId], references: [id])
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+
+  // No userId here — this is intentional for anonymity
+  // Use VoteRecord to check if a user has already voted
+}
+
+// ============================================================
+// VOTE RECORD
+// Tracks THAT a user voted in a campaign — without revealing WHO they voted for.
+// Used to enforce one-vote-per-user per campaign (SINGLE_CHOICE)
+// and to prevent double voting in MULTIPLE_CHOICE.
+// ============================================================
+
+model VoteRecord {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  campaignId Int
+  castedAt   DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+
+  @@unique([userId, campaignId]) // enforces one vote per user per campaign (SINGLE)
+}
+
+// ============================================================
+// CAMPAIGN VOTER
+// For INVITE_ONLY campaigns — only users in this table can vote
+// ============================================================
+
+model CampaignVoter {
+  id         Int      @id @default(autoincrement())
+  campaignId Int
+  userId     Int
+  addedAt    DateTime @default(now())
+
+  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@unique([campaignId, userId])
 }
