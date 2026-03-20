@@ -3,8 +3,8 @@ import dotenv from 'dotenv'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
 
-// import { authRouter } from './src/router/authRouter.js'
 import { userRouter } from './src/router/userRouter.js'
+import { orgRouter } from './src/router/orgRouter.js'
 
 dotenv.config()
 
@@ -18,8 +18,8 @@ app.use(express.urlencoded({ extended: true }))
 app.use(cookieParser())
 
 // ── Routes ────────────────────────────────────────────────────────────────────
-
 app.use('/api/users', userRouter)
+app.use('/api/orgs', orgRouter)
 
 // ── Health Check ──────────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
