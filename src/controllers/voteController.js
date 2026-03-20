@@ -1,4 +1,5 @@
 import prisma from '../lib/prisma.js'
+import { sendVoteConfirmationEmail } from '../utils/email.js'
 
 // ─── CAST VOTE ────────────────────────────────────────────────────────────────
 /**
@@ -197,6 +198,14 @@ export const castVote = async (req, res) => {
         })
       )
     ])
+
+    // ── Send vote confirmation email ─────────────────────────
+    // Fire and forget — we don't await this so a slow email
+    // server never delays the vote response to the user.
+    // If it fails, we just log the error silently.
+    sendVoteConfirmationEmail(req.user, campaign).catch(err =>
+      console.error('[EMAIL] Vote confirmation failed:', err.message)
+    )
 
     return res.status(201).json({
       success: true,
