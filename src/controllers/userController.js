@@ -29,12 +29,17 @@ export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body
 
+    const reqbody = req.body
+
     // ── Validation ──────────────────────────────────────────
-    if (!name || !email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name, email and password are required.'
-      })
+
+    for (let [key, value] of Object.entries(reqbody)) {
+      if (value === undefined || value === null || value === '') {
+        return res.status(400).json({
+          success: false,
+          message: `${key} is required.`
+        })
+      }
     }
 
     if (password.length < 8) {
