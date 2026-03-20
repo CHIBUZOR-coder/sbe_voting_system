@@ -34,3 +34,9 @@ DELETE /api/campaigns/:id/candidates/:cId    ← remove candidate
 
 # Invite list (INVITE_ONLY campaigns only)
 POST   /api/campaigns/:id/voters             ← add user to invite list by email
+
+
+#Admin Details
+SUPER_ADMIN_NAME="Chibuzor"
+SUPER_ADMIN_EMAIL="chibuzormekalam@gmail.com"
+SUPER_ADMIN_PASSWORD=StrongPassword123
