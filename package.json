@@ -1,0 +1,47 @@
+{
+  "name": "sbe_voting_system",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "types": "modules",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CHIBUZOR-coder/sbe_voting_system.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/CHIBUZOR-coder/sbe_voting_system/issues"
+  },
+  "homepage": "https://github.com/CHIBUZOR-coder/sbe_voting_system#readme",
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.5.0",
+    "@prisma/client": "^7.5.0",
+    "bcrypt": "^6.0.0",
+    "cloudinary": "^2.9.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "googleapis": "^171.4.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "nodemailer": "^8.0.3",
+    "p-queue": "^9.1.0",
+    "pdfkit": "^0.18.0",
+    "pg": "^8.20.0",
+    "resend": "^6.9.4",
+    "streamifier": "^0.1.1",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^7.5.0"
+  }
+}
