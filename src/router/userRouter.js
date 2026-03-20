@@ -8,7 +8,9 @@ import {
   forgotPassword,
   resetPassword,
   updateAvatar,
-  getProfile
+  getProfile,
+  logout,
+  refresh
 } from '../controllers/userController.js'
 
 const userRouter = express.Router()
@@ -23,5 +25,8 @@ userRouter.post('/reset-password', resetPassword)
 // ── Protected routes (require valid JWT) ─────────────────────────────────────
 userRouter.get('/profile', protect, getProfile)
 userRouter.patch('/avatar', protect, upload.single('avatar'), updateAvatar)
+userRouter.post('/refresh', refresh)
+userRouter.post('/logout', protect, logout)
+
 
 export { userRouter }

@@ -64,6 +64,7 @@ model User {
   isVerified      Boolean  @default(false)
   verifyToken     String?  // email verification token
   resetToken      String?  // password reset token
+  refreshToken    String?
   resetTokenExp   DateTime? // reset token expiry
 
   // Cloudinary — optional, can be added after registration

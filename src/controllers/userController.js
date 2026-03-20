@@ -1,9 +1,11 @@
 import bcrypt from 'bcrypt'
 import prisma from '../lib/prisma.js'
 import {
-  generateToken,
+  generateAccessToken,
+  generateRefreshToken,
   generateShortToken,
-  verifyToken
+  verifyToken,
+  verifyRefreshToken
 } from '../utils/token.js'
 import {
   sendVerificationEmail,
@@ -232,17 +234,25 @@ export const login = async (req, res) => {
       })
     }
 
-    // Generate JWT
-    const token = generateToken({
+    // Generate access token (15min) and refresh token (7days)
+    const accessToken = generateAccessToken({
       id: user.id,
       email: user.email,
       role: user.role
+    })
+    const refreshToken = generateRefreshToken({ id: user.id })
+
+    // Store refresh token in DB — invalidated on logout
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { refreshToken }
     })
 
     return res.status(200).json({
       success: true,
       message: 'Login successful.',
-      token,
+      accessToken,
+      refreshToken,
       data: {
         id: user.id,
         name: user.name,
@@ -469,6 +479,93 @@ export const getProfile = async (req, res) => {
     return res.status(200).json({ success: true, data: user })
   } catch (error) {
     console.error('getProfile error:', error.message)
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+
+// ─── REFRESH TOKEN ────────────────────────────────────────────────────────────
+/**
+ * POST /api/users/refresh
+ * Body: { refreshToken }
+ *
+ * - Verifies the refresh token
+ * - Checks it matches what is stored in the DB
+ * - Returns a new access token
+ */
+export const refresh = async (req, res) => {
+  try {
+    const { refreshToken } = req.body
+
+    if (!refreshToken) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Refresh token is required.' })
+    }
+
+    // Verify the refresh token signature
+    let decoded
+    try {
+      decoded = verifyRefreshToken(refreshToken)
+    } catch {
+      return res
+        .status(401)
+        .json({ success: false, message: 'Invalid or expired refresh token.' })
+    }
+
+    // Check token matches what is stored in DB
+    // This ensures logout truly invalidates the token
+    const user = await prisma.user.findUnique({ where: { id: decoded.id } })
+
+    if (!user || user.refreshToken !== refreshToken) {
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token is invalid or has been revoked.'
+      })
+    }
+
+    // Issue a fresh access token
+    const accessToken = generateAccessToken({
+      id: user.id,
+      email: user.email,
+      role: user.role
+    })
+
+    return res.status(200).json({
+      success: true,
+      accessToken
+    })
+  } catch (error) {
+    console.error('refresh error:', error.message)
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+// ─── LOGOUT ───────────────────────────────────────────────────────────────────
+/**
+ * POST /api/users/logout
+ * Protected — requires valid access token
+ *
+ * - Clears the refresh token from the DB
+ * - Even if an attacker has the refresh token, it is now invalid
+ */
+export const logout = async (req, res) => {
+  try {
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { refreshToken: null }
+    })
+
+    return res.status(200).json({
+      success: true,
+      message: 'Logged out successfully.'
+    })
+  } catch (error) {
+    console.error('logout error:', error.message)
     return res
       .status(500)
       .json({ success: false, message: 'Internal server error.' })
