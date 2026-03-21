@@ -116,10 +116,11 @@ export const getAllOrgs = async (req, res) => {
     const page = parseInt(req.query.page) || 1
     const limit = parseInt(req.query.limit) || 10
     const search = req.query.search || ''
+    const status = req.query.status || 'APPROVED' // ← dynamic, defaults to APPROVED
     const skip = (page - 1) * limit
 
     const where = {
-      status: 'APPROVED',
+      status, // ← was hardcoded, now uses query param
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
@@ -140,7 +141,12 @@ export const getAllOrgs = async (req, res) => {
           slug: true,
           description: true,
           logoUrl: true,
+          status: true, // ← also add status to response
           createdAt: true,
+          createdBy: {
+            // ← also add createdBy for admin panel
+            select: { id: true, name: true, email: true, avatarUrl: true }
+          },
           _count: { select: { members: true, campaigns: true } }
         }
       }),
@@ -164,6 +170,7 @@ export const getAllOrgs = async (req, res) => {
       .json({ success: false, message: 'Internal server error.' })
   }
 }
+
 
 // ─── GET SINGLE ORGANIZATION ──────────────────────────────────────────────────
 /**
@@ -389,14 +396,18 @@ export const getPendingOrgs = async (req, res) => {
         id: true,
         name: true,
         slug: true,
+        status:true,
         description: true,
         logoUrl: true,
         createdAt: true,
         createdBy: {
           select: { id: true, name: true, email: true, avatarUrl: true }
+          
         }
       }
     })
+
+
 
     return res.status(200).json({ success: true, data: orgs })
   } catch (error) {
