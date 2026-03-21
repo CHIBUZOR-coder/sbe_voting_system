@@ -11,7 +11,9 @@ import {
   updateAvatar,
   getProfile,
   refresh,
-  logout
+  logout,
+  changePassword,
+  updateProfile
 } from '../controllers/userController.js'
 
 const userRouter = express.Router()
@@ -270,5 +272,65 @@ userRouter.patch('/avatar', protect, upload.single('avatar'), updateAvatar)
  *         description: Unauthorized
  */
 userRouter.post('/logout', protect, logout)
+
+
+/**
+ * @swagger
+ * /api/users/profile:
+ *   patch:
+ *     summary: Update profile name
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [name]
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Chibuzor Mekalam
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *       401:
+ *         description: Unauthorized
+ */
+userRouter.patch('/profile', protect, updateProfile)
+
+/**
+ * @swagger
+ * /api/users/password:
+ *   patch:
+ *     summary: Change password
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *               newPassword:
+ *                 type: string
+ *                 example: NewPassword123
+ *     responses:
+ *       200:
+ *         description: Password changed — user must re-login
+ *       400:
+ *         description: Current password incorrect or same as new
+ *       401:
+ *         description: Unauthorized
+ */
+userRouter.patch('/password', protect, changePassword)
+
 
 export { userRouter }

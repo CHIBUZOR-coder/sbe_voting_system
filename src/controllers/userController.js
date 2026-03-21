@@ -569,3 +569,122 @@ export const logout = async (req, res) => {
       .json({ success: false, message: 'Internal server error.' })
   }
 }
+
+
+// ─── UPDATE PROFILE ───────────────────────────────────────────────────────────
+/**
+ * PATCH /api/users/profile
+ * Protected — updates the logged-in user's name
+ * Body: { name }
+ */
+export const updateProfile = async (req, res) => {
+  try {
+    const { name } = req.body
+
+    if (!name || name.trim().length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name must be at least 2 characters.'
+      })
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { name: name.trim() },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isVerified: true,
+        avatarUrl: true,
+        createdAt: true
+      }
+    })
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully.',
+      data: updated
+    })
+  } catch (error) {
+    console.error('updateProfile error:', error.message)
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+// ─── CHANGE PASSWORD ──────────────────────────────────────────────────────────
+/**
+ * PATCH /api/users/password
+ * Protected — changes the logged-in user's password
+ * Body: { currentPassword, newPassword }
+ *
+ * - Verifies current password with bcrypt before allowing change
+ * - Hashes and saves the new password
+ * - Clears refresh token — forces re-login for security
+ */
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password and new password are required.'
+      })
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 8 characters.'
+      })
+    }
+
+    // Fetch user with password for comparison
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id }
+    })
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password)
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password is incorrect.'
+      })
+    }
+
+    // Prevent using the same password
+    const isSame = await bcrypt.compare(newPassword, user.password)
+    if (isSame) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be different from your current password.'
+      })
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 12)
+
+    // Save new password and clear refresh token — forces re-login
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        password: hashedPassword,
+        refreshToken: null
+      }
+    })
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password changed successfully. Please log in again.'
+    })
+  } catch (error) {
+    console.error('changePassword error:', error.message)
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal server error.' })
+  }
+}
