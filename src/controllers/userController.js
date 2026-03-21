@@ -4,7 +4,8 @@ import {
   generateRefreshToken,
   generateShortToken,
   verifyToken,
-  verifyRefreshToken
+  verifyRefreshToken,
+  generateAccessToken
 } from '../utils/token.js'
 import {
   sendVerificationEmail,
