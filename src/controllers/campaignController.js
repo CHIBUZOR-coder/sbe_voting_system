@@ -535,13 +535,6 @@ export const addCandidate = async (req, res) => {
         .json({ success: false, message: 'userId is required.' })
     }
 
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: 'A candidate photo is required.'
-      })
-    }
-
     const campaign = await prisma.campaign.findUnique({
       where: { id: parseInt(id) },
       include: { organization: true }
@@ -553,7 +546,6 @@ export const addCandidate = async (req, res) => {
         .json({ success: false, message: 'Campaign not found.' })
     }
 
-    // Only DRAFT campaigns can have candidates added
     if (campaign.status !== 'DRAFT') {
       return res.status(400).json({
         success: false,
@@ -561,7 +553,6 @@ export const addCandidate = async (req, res) => {
       })
     }
 
-    // Authorization
     const isOrgCreator =
       campaign.organization && campaign.organization.createdById === req.user.id
 
@@ -572,7 +563,7 @@ export const addCandidate = async (req, res) => {
       })
     }
 
-    // Check the nominated user exists
+    // ── Fetch nominated user FIRST ───────────────────────────
     const nominatedUser = await prisma.user.findUnique({
       where: { id: parseInt(userId) }
     })
@@ -584,7 +575,6 @@ export const addCandidate = async (req, res) => {
       })
     }
 
-    // Check not already a candidate in this campaign
     const existingCandidate = await prisma.candidate.findUnique({
       where: {
         userId_campaignId: {
@@ -601,18 +591,41 @@ export const addCandidate = async (req, res) => {
       })
     }
 
-    // Upload candidate photo — required
-    const { url, publicId } = await uploadToCloudinary(
-      req.file.buffer,
-      'campaigns/candidates'
-    )
+    // ── Handle photo AFTER user is fetched ───────────────────
+    let photoUrl, photoPublicId
+
+    if (req.file) {
+      const uploaded = await uploadToCloudinary(
+        req.file.buffer,
+        'campaigns/candidates'
+      )
+      photoUrl = uploaded.url
+      photoPublicId = uploaded.publicId
+    } else if (req.body.useExistingAvatar === 'true') {
+      // Use candidate's existing avatarUrl from their profile
+      photoUrl = nominatedUser.avatarUrl
+      photoPublicId = nominatedUser.avatarPublicId ?? null
+
+      if (!photoUrl) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'This user has no profile photo. Please upload a candidate photo.'
+        })
+      }
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'A candidate photo is required.'
+      })
+    }
 
     const candidate = await prisma.candidate.create({
       data: {
         campaignId: parseInt(id),
         userId: parseInt(userId),
-        photoUrl: url,
-        photoPublicId: publicId
+        photoUrl,
+        photoPublicId
       },
       include: {
         user: { select: { id: true, name: true, email: true } }
