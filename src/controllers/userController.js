@@ -88,10 +88,10 @@ export const register = async (req, res) => {
     })
 
     // ── Send verification email ──────────────────────────────
-    const verifyToken_ = generateShortToken({
-      id: user.id,
-      purpose: 'verify-email'
-    })
+    const verifyToken_ = generateShortToken(
+      { id: user.id, purpose: 'verify-email' },
+      '10m'
+    )
 
     // Store token on the user record
     await prisma.user.update({
@@ -130,7 +130,7 @@ export const register = async (req, res) => {
  */
 export const verifyEmail = async (req, res) => {
   try {
-    const { token } = req.query
+ const token = decodeURIComponent(req.query.token || '')
 
     if (!token) {
       return res
@@ -138,6 +138,8 @@ export const verifyEmail = async (req, res) => {
         .json({ success: false, message: 'Token is required.' })
     }
 
+    console.log("tok:", token);
+    
     // Decode token
     let decoded
     try {
@@ -218,10 +220,39 @@ export const login = async (req, res) => {
     }
 
     // Check email is verified before allowing login
+    // Check email is verified — resend verification email if not
     if (!user.isVerified) {
+      let existingTokenValid = false
+
+      if (user.verifyToken) {
+        try {
+          // Rename to avoid confusion with user.verifyToken field
+          const decoded = verifyToken(user.verifyToken)
+          if (decoded) existingTokenValid = true
+        } catch {
+          existingTokenValid = false
+        }
+      }
+
+      if (!existingTokenValid) {
+        const newVerifyToken = generateShortToken(
+          { id: user.id, purpose: 'verify-email' },
+          '10m'
+        )
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { verifyToken: newVerifyToken }
+        })
+
+        await sendVerificationEmail(user, newVerifyToken)
+      }
+
       return res.status(403).json({
         success: false,
-        message: 'Please verify your email before logging in.'
+        message: existingTokenValid
+          ? 'Your email is not verified. Please check your inbox for the verification link.'
+          : 'Your email is not verified. A new verification link has been sent. It expires in 10 minutes.'
       })
     }
 
@@ -570,7 +601,6 @@ export const logout = async (req, res) => {
       .json({ success: false, message: 'Internal server error.' })
   }
 }
-
 
 // ─── UPDATE PROFILE ───────────────────────────────────────────────────────────
 /**

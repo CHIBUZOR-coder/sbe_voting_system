@@ -40,8 +40,9 @@ export const generateRefreshToken = payload => {
  * Example:
  *   const token = generateShortToken({ id: 1, purpose: 'verify-email' })
  */
-export const generateShortToken = payload => {
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' })
+// In token.js
+export const generateShortToken = (payload, expiresIn = '1h') => {
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn })
 }
 
 /**
@@ -69,4 +70,3 @@ export const verifyRefreshToken = token => {
 
 // Alias — keeps any existing verifyToken calls working
 export const verifyToken = verifyAccessToken
-

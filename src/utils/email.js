@@ -34,7 +34,10 @@ export const sendEmail = async ({ to, subject, html }) => {
  * Sends a verification email after registration.
  */
 export const sendVerificationEmail = async (user, token) => {
-  const verifyUrl = `${process.env.CLIENT_URL}/verify-email?token=${token}`
+  // In email.js — encode token when building the link
+  const verifyUrl = `${
+    process.env.CLIENT_URL
+  }/verify-email?token=${encodeURIComponent(token)}`
 
   await sendEmail({
     to: user.email,
@@ -68,7 +71,8 @@ export const sendVerificationEmail = async (user, token) => {
  * Sends a password reset email.
  */
 export const sendPasswordResetEmail = async (user, token) => {
-  const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${token}`
+  const resetUrl =  `${process.env.CLIENT_URL}/reset-password?token=${encodeURIComponent(token)}`
+
 
   await sendEmail({
     to: user.email,
