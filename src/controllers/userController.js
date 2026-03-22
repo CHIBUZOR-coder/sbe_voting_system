@@ -130,7 +130,7 @@ export const register = async (req, res) => {
  */
 export const verifyEmail = async (req, res) => {
   try {
- const token = decodeURIComponent(req.query.token || '')
+    const token = req.query.token || ''
 
     if (!token) {
       return res
@@ -138,8 +138,8 @@ export const verifyEmail = async (req, res) => {
         .json({ success: false, message: 'Token is required.' })
     }
 
-    console.log("tok:", token);
-    
+    console.log('tok:', token)
+
     // Decode token
     let decoded
     try {
@@ -240,10 +240,16 @@ export const login = async (req, res) => {
           '10m'
         )
 
-        await prisma.user.update({
+        console.log('🔑 New token generated:', newVerifyToken)
+
+        const updatedUser = await prisma.user.update({
           where: { id: user.id },
-          data: { verifyToken: newVerifyToken }
+          data: { verifyToken: newVerifyToken },
+          select: { id: true, verifyToken: true }
         })
+
+        console.log('💾 Token saved to DB:', updatedUser.verifyToken)
+        console.log('✅ Match:', updatedUser.verifyToken === newVerifyToken)
 
         await sendVerificationEmail(user, newVerifyToken)
       }
@@ -714,6 +720,37 @@ export const changePassword = async (req, res) => {
     })
   } catch (error) {
     console.error('changePassword error:', error.message)
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal server error.' })
+  }
+}
+
+// ─── SEARCH USERS ─────────────────────────────────────────────
+export const searchUsers = async (req, res) => {
+  try {
+    const q = req.query.q || ''
+    if (q.trim().length < 2) {
+      return res
+        .status(400)
+        .json({ success: false, message: 'Query too short.' })
+    }
+
+    const users = await prisma.user.findMany({
+      where: {
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } }
+        ],
+        isVerified: true
+      },
+      take: 10,
+      select: { id: true, name: true, email: true, avatarUrl: true }
+    })
+
+    return res.status(200).json({ success: true, data: users })
+  } catch (error) {
+    console.error('searchUsers error:', error.message)
     return res
       .status(500)
       .json({ success: false, message: 'Internal server error.' })

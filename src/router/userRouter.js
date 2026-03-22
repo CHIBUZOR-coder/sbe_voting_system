@@ -1,6 +1,6 @@
 import express from 'express'
 import upload from '../middleware/upload.js'
-import { protect } from '../middleware/auth.js'
+import { protect, requireVerified } from '../middleware/auth.js'
 import { authLimiter, passwordLimiter } from '../middleware/rateLimiter.js'
 import {
   register,
@@ -13,8 +13,10 @@ import {
   refresh,
   logout,
   changePassword,
-  updateProfile
+  updateProfile,
+  searchUsers
 } from '../controllers/userController.js'
+import { getMyOrgs } from '../controllers/orgController.js'
 
 const userRouter = express.Router()
 
@@ -331,6 +333,9 @@ userRouter.patch('/profile', protect, updateProfile)
  *         description: Unauthorized
  */
 userRouter.patch('/password', protect, changePassword)
+
+userRouter.get('/my-orgs', protect, requireVerified, getMyOrgs)
+userRouter.get('/search', protect, searchUsers)
 
 
 export { userRouter }

@@ -164,21 +164,19 @@ export const getAllCampaigns = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10
     const search = req.query.search || ''
     const status = req.query.status || ''
+    const allStatuses = req.query.allStatuses === 'true'
     const orgId = req.query.orgId ? parseInt(req.query.orgId) : null
     const skip = (page - 1) * limit
 
     const validStatuses = ['DRAFT', 'ACTIVE', 'CLOSED', 'CANCELLED']
 
     const where = {
-      // Exclude DRAFT and CANCELLED unless filtered specifically
-      status:
-        status && validStatuses.includes(status)
-          ? status
-          : { in: ['ACTIVE', 'CLOSED'] },
+      // Only filter by status if allStatuses is not true
+      ...(!allStatuses && { status: status || 'ACTIVE' }),
+      ...(orgId && { organizationId: parseInt(orgId) }),
       ...(search && {
         title: { contains: search, mode: 'insensitive' }
-      }),
-      ...(orgId && { organizationId: orgId })
+      })
     }
 
     const [campaigns, total] = await Promise.all([

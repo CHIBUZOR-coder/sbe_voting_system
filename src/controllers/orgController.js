@@ -639,3 +639,30 @@ export const getMembers = async (req, res) => {
       .json({ success: false, message: 'Internal server error.' })
   }
 }
+
+
+export const getMyOrgs = async (req, res) => {
+  try {
+    const orgs = await prisma.organization.findMany({
+      where: { createdById: req.user.id },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        logoUrl: true,
+        status: true,
+        createdAt: true,
+        _count: { select: { members: true, campaigns: true } }
+      }
+    })
+
+    return res.status(200).json({ success: true, data: orgs })
+  } catch (error) {
+    console.error('getMyOrgs error:', error.message)
+    return res
+      .status(500)
+      .json({ success: false, message: 'Internal server error.' })
+  }
+}
