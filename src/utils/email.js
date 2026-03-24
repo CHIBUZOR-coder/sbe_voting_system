@@ -27,7 +27,7 @@ export const sendEmail = async ({ to, subject, html }) => {
 export const sendVerificationEmail = async (user, token) => {
   // In email.js — encode token when building the link
   const verifyUrl = `${
-    process.env.CLIENT_URL
+    process.env.GLOBAL_CLIENT_URL
   }/verify-email?token=${encodeURIComponent(token)}`
 
   await sendEmail({
