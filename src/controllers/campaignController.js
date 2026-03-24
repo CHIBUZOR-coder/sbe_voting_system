@@ -248,11 +248,9 @@ export const getCampaignById = async (req, res) => {
             user: {
               select: { id: true, name: true, avatarUrl: true }
             },
-            // Real-time vote count per candidate
             _count: { select: { votes: true } }
           }
         },
-        // Total number of voters who have voted
         _count: { select: { voteRecords: true } }
       }
     })
@@ -272,6 +270,10 @@ export const getCampaignById = async (req, res) => {
         })
       }
 
+      // ── Debug logs ────────────────────────────────────────
+      console.log('🔍 req.user.id:', req.user.id)
+      console.log('🔍 campaign.organizationId:', campaign.organizationId)
+
       const isMember = await prisma.orgMember.findUnique({
         where: {
           userId_organizationId: {
@@ -280,6 +282,9 @@ export const getCampaignById = async (req, res) => {
           }
         }
       })
+
+      console.log('🔍 isMember:', isMember)
+      // ─────────────────────────────────────────────────────
 
       if (!isMember && req.user.role !== 'SUPER_ADMIN') {
         return res.status(403).json({
@@ -297,6 +302,10 @@ export const getCampaignById = async (req, res) => {
         })
       }
 
+      // ── Debug logs ────────────────────────────────────────
+      console.log('🔍 req.user.id:', req.user.id)
+      console.log('🔍 campaign.id:', campaign.id)
+
       const isInvited = await prisma.campaignVoter.findUnique({
         where: {
           campaignId_userId: {
@@ -305,6 +314,9 @@ export const getCampaignById = async (req, res) => {
           }
         }
       })
+
+      console.log('🔍 isInvited:', isInvited)
+      // ─────────────────────────────────────────────────────
 
       if (!isInvited && req.user.role !== 'SUPER_ADMIN') {
         return res.status(403).json({
@@ -322,6 +334,7 @@ export const getCampaignById = async (req, res) => {
       .json({ success: false, message: 'Internal server error.' })
   }
 }
+
 
 // ─── UPDATE CAMPAIGN ──────────────────────────────────────────────────────────
 /**
