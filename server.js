@@ -31,12 +31,19 @@ const httpServer = createServer(app)
 // ── Attach Socket.io to the HTTP server ──────────────────────────────────────
 // Socket.io needs to sit on the same server so it can intercept
 // WebSocket upgrade requests on the same port (5000).
+const allowedOrigins = [
+  'http://localhost:3000',
+  // add more manual URLs here
+  ...[process.env.CLIENT_URL, process.env.GLOBAL_CLIENT_URL].filter(Boolean)
+]
+
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    origin: allowedOrigins,
     methods: ['GET', 'POST']
   }
 })
+
 
 // ── Make io accessible throughout the app ────────────────────────────────────
 // We store io in a separate module (src/lib/socket.js) so any controller
