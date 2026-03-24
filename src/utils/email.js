@@ -1,15 +1,5 @@
-import nodemailer from 'nodemailer'
-
-// Creates a transporter using SMTP credentials from .env
-const transporter = nodemailer.createTransport({
-  host: process.env.MAIL_HOST,
-  port: Number(process.env.MAIL_PORT) || 587,
-  secure: false,
-  auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS
-  }
-})
+import { Resend } from 'resend'
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 /**
  * Sends an email.
@@ -20,13 +10,14 @@ const transporter = nodemailer.createTransport({
  * @param {string} options.html    - HTML body of the email
  */
 export const sendEmail = async ({ to, subject, html }) => {
-  await transporter.sendMail({
-    from: `"${process.env.MAIL_FROM_NAME}" <${process.env.MAIL_USER}>`,
+  await resend.emails.send({
+    from: `${process.env.MAIL_FROM_NAME} <noreply@zoeytech.site>`,
     to,
     subject,
     html
   })
 }
+
 
 // ─── Email Templates ─────────────────────────────────────────────────────────
 

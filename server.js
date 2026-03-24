@@ -18,6 +18,7 @@ import { initSocket } from './src/lib/socket.js'
 dotenv.config()
 
 const app = express()
+app.set('trust proxy', 1)
 const port = process.env.PORT || 5000
 
 // ── IMPORTANT: We wrap express in a native HTTP server ────────────────────────
@@ -32,8 +33,6 @@ const httpServer = createServer(app)
 // Socket.io needs to sit on the same server so it can intercept
 // WebSocket upgrade requests on the same port (5000).
 const allowedOrigins = [
-  'http://localhost:3000',
-  // add more manual URLs here
   ...[process.env.CLIENT_URL, process.env.GLOBAL_CLIENT_URL].filter(Boolean)
 ]
 
@@ -43,7 +42,6 @@ const io = new Server(httpServer, {
     methods: ['GET', 'POST']
   }
 })
-
 
 // ── Make io accessible throughout the app ────────────────────────────────────
 // We store io in a separate module (src/lib/socket.js) so any controller
