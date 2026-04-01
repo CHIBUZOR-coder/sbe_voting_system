@@ -30,16 +30,17 @@ const port = process.env.PORT || 5000
 const httpServer = createServer(app)
 
 // ── Attach Socket.io to the HTTP server ──────────────────────────────────────
-// Socket.io needs to sit on the same server so it can intercept
-// WebSocket upgrade requests on the same port (5000).
 const allowedOrigins = [
-  ...[process.env.CLIENT_URL, process.env.GLOBAL_CLIENT_URL].filter(Boolean)
-]
+  process.env.CLIENT_URL,
+  process.env.GLOBAL_CLIENT_URL,
+  'http://localhost:5173'
+].filter(Boolean)
 
 const io = new Server(httpServer, {
   cors: {
     origin: allowedOrigins,
-    methods: ['GET', 'POST']
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 })
 

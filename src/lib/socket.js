@@ -43,20 +43,16 @@ export const initSocket = socketIO => {
     // Frontend usage:
     //   socket.emit('join_campaign', { campaignId: 3 })
     socket.on('join_campaign', ({ campaignId }) => {
-      const room = `campaign:${campaignId}`
+      if (!campaignId) return
+      const room = `campaign:${String(campaignId)}`
       socket.join(room)
       console.log(`[SOCKET] Client ${socket.id} joined room: ${room}`)
     })
 
     // ── Leave a campaign room ──────────────────────────────
-    // When a client navigates away from the results page,
-    // the frontend emits 'leave_campaign'.
-    // We remove them from the room so they stop receiving updates.
-    //
-    // Frontend usage:
-    //   socket.emit('leave_campaign', { campaignId: 3 })
     socket.on('leave_campaign', ({ campaignId }) => {
-      const room = `campaign:${campaignId}`
+      if (!campaignId) return
+      const room = `campaign:${String(campaignId)}`
       socket.leave(room)
       console.log(`[SOCKET] Client ${socket.id} left room: ${room}`)
     })
