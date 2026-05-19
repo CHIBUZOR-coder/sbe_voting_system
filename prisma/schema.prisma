@@ -114,13 +114,13 @@ model Organization {
 // ============================================================
 
 model OrgMember {
-  id             Int          @id @default(autoincrement())
+  id             Int      @id @default(autoincrement())
   userId         Int
   organizationId Int
-  joinedAt       DateTime     @default(now())
+  joinedAt       DateTime @default(now())
 
-  user           User         @relation(fields: [userId], references: [id])
-  organization   Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@unique([userId, organizationId]) // a user can only be a member once per org
 }
@@ -130,31 +130,31 @@ model OrgMember {
 // ============================================================
 
 model Campaign {
-  id             Int            @id @default(autoincrement())
-  title          String
-  description    String?
-  accessType     AccessType     @default(PUBLIC)
-  votingType     VotingType     @default(SINGLE_CHOICE)
-  status         CampaignStatus @default(DRAFT)
-  startDate      DateTime
-  endDate        DateTime
+  id          Int            @id @default(autoincrement())
+  title       String
+  description String?
+  accessType  AccessType     @default(PUBLIC)
+  votingType  VotingType     @default(SINGLE_CHOICE)
+  status      CampaignStatus @default(DRAFT)
+  startDate   DateTime
+  endDate     DateTime
 
   // Who created this campaign
-  createdById    Int
-  createdBy      User           @relation("CampaignCreator", fields: [createdById], references: [id])
+  createdById Int
+  createdBy   User @relation("CampaignCreator", fields: [createdById], references: [id])
 
   // Optional — null means it is a standalone public campaign
   organizationId Int?
-  organization   Organization?  @relation(fields: [organizationId], references: [id])
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  candidates     Candidate[]
-  voteRecords    VoteRecord[]   // who voted (anonymous — no candidate link here)
-  votes          Vote[]         // the actual candidate vote counts
-  allowedVoters  CampaignVoter[] // for INVITE_ONLY campaigns
+  candidates    Candidate[]
+  voteRecords   VoteRecord[] // who voted (anonymous — no candidate link here)
+  votes         Vote[] // the actual candidate vote counts
+  allowedVoters CampaignVoter[] // for INVITE_ONLY campaigns
 }
 
 // ============================================================
@@ -163,19 +163,19 @@ model Campaign {
 // ============================================================
 
 model Candidate {
-  id              Int      @id @default(autoincrement())
-  campaignId      Int
-  userId          Int      // must be a registered user
+  id         Int @id @default(autoincrement())
+  campaignId Int
+  userId     Int // must be a registered user
 
   // Cloudinary — REQUIRED for candidates
-  photoUrl        String
-  photoPublicId   String
+  photoUrl      String
+  photoPublicId String
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
-  campaign        Campaign @relation(fields: [campaignId], references: [id])
-  user            User     @relation(fields: [userId], references: [id])
-  votes           Vote[]
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+  votes    Vote[]
 
   @@unique([userId, campaignId]) // a user can only be a candidate once per campaign
 }
@@ -188,13 +188,13 @@ model Candidate {
 // ============================================================
 
 model Vote {
-  id          Int       @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   campaignId  Int
   candidateId Int
-  castedAt    DateTime  @default(now())
+  castedAt    DateTime @default(now())
 
-  campaign    Campaign  @relation(fields: [campaignId], references: [id])
-  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  campaign  Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
 
   // No userId here — this is intentional for anonymity
   // Use VoteRecord to check if a user has already voted
@@ -213,8 +213,8 @@ model VoteRecord {
   campaignId Int
   castedAt   DateTime @default(now())
 
-  user       User     @relation(fields: [userId], references: [id])
-  campaign   Campaign @relation(fields: [campaignId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
   @@unique([userId, campaignId]) // enforces one vote per user per campaign (SINGLE)
 }
@@ -230,8 +230,8 @@ model CampaignVoter {
   userId     Int
   addedAt    DateTime @default(now())
 
-  campaign   Campaign @relation(fields: [campaignId], references: [id])
-  user       User     @relation(fields: [userId], references: [id])
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
 
   @@unique([campaignId, userId])
 }

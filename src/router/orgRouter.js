@@ -9,6 +9,7 @@ import {
   approveOrg,
   rejectOrg,
   getPendingOrgs,
+  getMyOrgs,
   addMember,
   removeMember,
   getMembers
@@ -50,6 +51,20 @@ const orgRouter = express.Router()
  *         description: List of approved organizations
  */
 orgRouter.get('/', getAllOrgs)
+
+/**
+ * @swagger
+ * /api/orgs/my:
+ *   get:
+ *     summary: Get all organizations created by the current user
+ *     tags: [Organizations]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of user's organizations
+ */
+orgRouter.get('/my', protect, getMyOrgs)
 
 /**
  * @swagger
