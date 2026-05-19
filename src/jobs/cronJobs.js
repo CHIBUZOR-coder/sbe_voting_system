@@ -20,22 +20,51 @@ import prisma from '../lib/prisma.js'
  *   * * * * * *
  * ─────────────────────────────────────────────────────────────
  */
+
+const autoActivateCampaigns = async () => {
+  try {
+    const now = new Date()
+
+    const campaignsToActivate = await prisma.campaign.findMany({
+      where: {
+        status: 'DRAFT',
+        startDate: { lte: now }
+      },
+      select: { id: true, title: true, startDate: true }
+    })
+
+    if (campaignsToActivate.length === 0) return
+
+    const result = await prisma.campaign.updateMany({
+      where: {
+        id: { in: campaignsToActivate.map(c => c.id) }
+      },
+      data: { status: 'ACTIVE' }
+    })
+
+    console.log(
+      `[CRON] Auto-activated ${result.count} campaign(s):`,
+      campaignsToActivate.map(c => `"${c.title}" (id: ${c.id})`).join(', ')
+    )
+  } catch (error) {
+    console.error('[CRON] Auto-activate campaigns failed:', error.message)
+  }
+}
+
 const autoCloseCampaigns = async () => {
   try {
     const now = new Date()
 
-    // Find all ACTIVE campaigns whose endDate has passed
     const expiredCampaigns = await prisma.campaign.findMany({
       where: {
         status: 'ACTIVE',
-        endDate: { lte: now } // endDate is less than or equal to now
+        endDate: { lte: now }
       },
       select: { id: true, title: true, endDate: true }
     })
 
     if (expiredCampaigns.length === 0) return
 
-    // Close all expired campaigns in one query
     const result = await prisma.campaign.updateMany({
       where: {
         id: { in: expiredCampaigns.map(c => c.id) }
@@ -52,15 +81,9 @@ const autoCloseCampaigns = async () => {
   }
 }
 
-/**
- * Starts the cron job.
- * Called once when the server starts.
- *
- * Runs every minute — accurate enough for most voting scenarios.
- * If you need more precision, change to '* * * * * *' for every second
- * but every minute is recommended to avoid DB overload.
- */
 export const startCronJobs = () => {
+  cron.schedule('* * * * *', autoActivateCampaigns)
   cron.schedule('* * * * *', autoCloseCampaigns)
+  console.log('[CRON] Auto-activate campaigns job started (runs every minute)')
   console.log('[CRON] Auto-close campaigns job started (runs every minute)')
 }
