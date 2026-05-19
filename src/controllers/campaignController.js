@@ -19,6 +19,8 @@ import {
  * - startDate must be in the future
  * - endDate must be after startDate
  */
+
+
 export const createCampaign = async (req, res) => {
   try {
     const {
@@ -68,7 +70,9 @@ export const createCampaign = async (req, res) => {
       })
     }
 
-    if (start <= now) {
+    // ── Allow 2-minute buffer for network delay / clock skew ─
+    const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000)
+    if (start < twoMinutesAgo) {
       return res.status(400).json({
         success: false,
         message: 'startDate must be in the future.'
@@ -121,6 +125,9 @@ export const createCampaign = async (req, res) => {
       }
     }
 
+    // ── Determine initial status ─────────────────────────────
+    const status = start <= now ? 'ACTIVE' : 'DRAFT'
+
     const campaign = await prisma.campaign.create({
       data: {
         title,
@@ -129,6 +136,8 @@ export const createCampaign = async (req, res) => {
         votingType,
         startDate: start,
         endDate: end,
+        status,
+        createdById: req.user.id,
         organizationId: organizationId ? parseInt(organizationId) : null
       }
     })
@@ -136,7 +145,9 @@ export const createCampaign = async (req, res) => {
     return res.status(201).json({
       success: true,
       message:
-        'Campaign created successfully. Add candidates before activating.',
+        status === 'ACTIVE'
+          ? 'Campaign created and is now active. Add candidates to begin voting.'
+          : 'Campaign created successfully. Add candidates before activating.',
       data: campaign
     })
   } catch (error) {
@@ -146,6 +157,134 @@ export const createCampaign = async (req, res) => {
       .json({ success: false, message: 'Internal server error.' })
   }
 }
+
+// export const createCampaign = async (req, res) => {
+//   try {
+//     const {
+//       title,
+//       description,
+//       accessType,
+//       votingType,
+//       startDate,
+//       endDate,
+//       organizationId
+//     } = req.body
+
+//     // ── Validation ──────────────────────────────────────────
+//     if (!title || !accessType || !votingType || !startDate || !endDate) {
+//       return res.status(400).json({
+//         success: false,
+//         message:
+//           'title, accessType, votingType, startDate and endDate are required.'
+//       })
+//     }
+
+//     const validAccessTypes = ['PUBLIC', 'ORG_MEMBERS_ONLY', 'INVITE_ONLY']
+//     const validVotingTypes = ['SINGLE_CHOICE', 'MULTIPLE_CHOICE']
+
+//     if (!validAccessTypes.includes(accessType)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `accessType must be one of: ${validAccessTypes.join(', ')}`
+//       })
+//     }
+
+//     if (!validVotingTypes.includes(votingType)) {
+//       return res.status(400).json({
+//         success: false,
+//         message: `votingType must be one of: ${validVotingTypes.join(', ')}`
+//       })
+//     }
+
+//     const start = new Date(startDate)
+//     const end = new Date(endDate)
+//     const now = new Date()
+
+//     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'startDate and endDate must be valid dates.'
+//       })
+//     }
+
+//     if (start <= now) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'startDate must be in the future.'
+//       })
+//     }
+
+//     if (end <= start) {
+//       return res.status(400).json({
+//         success: false,
+//         message: 'endDate must be after startDate.'
+//       })
+//     }
+
+//     // ── ORG_MEMBERS_ONLY requires an organizationId ──────────
+//     if (accessType === 'ORG_MEMBERS_ONLY' && !organizationId) {
+//       return res.status(400).json({
+//         success: false,
+//         message:
+//           'organizationId is required when accessType is ORG_MEMBERS_ONLY.'
+//       })
+//     }
+
+//     // ── Validate org if provided ─────────────────────────────
+//     if (organizationId) {
+//       const org = await prisma.organization.findUnique({
+//         where: { id: parseInt(organizationId) }
+//       })
+
+//       if (!org) {
+//         return res
+//           .status(404)
+//           .json({ success: false, message: 'Organization not found.' })
+//       }
+
+//       if (org.status !== 'APPROVED') {
+//         return res.status(403).json({
+//           success: false,
+//           message:
+//             'Your organization must be approved before creating campaigns.'
+//         })
+//       }
+
+//       // Only the org creator or SUPER_ADMIN can create campaigns for this org
+//       if (org.createdById !== req.user.id && req.user.role !== 'SUPER_ADMIN') {
+//         return res.status(403).json({
+//           success: false,
+//           message:
+//             'You are not authorized to create campaigns for this organization.'
+//         })
+//       }
+//     }
+
+//     const campaign = await prisma.campaign.create({
+//       data: {
+//         title,
+//         description,
+//         accessType,
+//         votingType,
+//         startDate: start,
+//         endDate: end,
+//         organizationId: organizationId ? parseInt(organizationId) : null
+//       }
+//     })
+
+//     return res.status(201).json({
+//       success: true,
+//       message:
+//         'Campaign created successfully. Add candidates before activating.',
+//       data: campaign
+//     })
+//   } catch (error) {
+//     console.error('createCampaign error:', error.message)
+//     return res
+//       .status(500)
+//       .json({ success: false, message: 'Internal server error.' })
+//   }
+// }
 
 // ─── GET ALL CAMPAIGNS ────────────────────────────────────────────────────────
 /**
