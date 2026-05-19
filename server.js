@@ -1,10 +1,9 @@
+import dotenv from 'dotenv'
 import express from 'express'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
-import dotenv from 'dotenv'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
-
 import swaggerUi from 'swagger-ui-express'
 import swaggerSpec from './src/config/swagger.js'
 import { generalLimiter } from './src/middleware/rateLimiter.js'
