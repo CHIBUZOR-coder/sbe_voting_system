@@ -76,6 +76,7 @@ model User {
 
   // Relations
   createdOrgs     Organization[]  @relation("OrgCreator")
+  createdCampaigns Campaign[]     @relation("CampaignCreator")
   orgMemberships  OrgMember[]
   voteRecords     VoteRecord[]    // tracks THAT the user voted (anonymous)
   candidacies     Candidate[]     // campaigns this user is a candidate in
@@ -137,6 +138,10 @@ model Campaign {
   status         CampaignStatus @default(DRAFT)
   startDate      DateTime
   endDate        DateTime
+
+  // Who created this campaign
+  createdById    Int
+  createdBy      User           @relation("CampaignCreator", fields: [createdById], references: [id])
 
   // Optional — null means it is a standalone public campaign
   organizationId Int?
