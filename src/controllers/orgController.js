@@ -643,8 +643,10 @@ export const getMembers = async (req, res) => {
 
 export const getMyOrgs = async (req, res) => {
   try {
+    const where = req.user.role === 'SUPER_ADMIN' ? {} : { createdById: req.user.id }
+
     const orgs = await prisma.organization.findMany({
-      where: { createdById: req.user.id },
+      where,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -654,6 +656,9 @@ export const getMyOrgs = async (req, res) => {
         logoUrl: true,
         status: true,
         createdAt: true,
+        createdBy: {
+          select: { id: true, name: true, email: true, avatarUrl: true }
+        },
         _count: { select: { members: true, campaigns: true } }
       }
     })

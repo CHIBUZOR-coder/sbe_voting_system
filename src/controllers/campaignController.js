@@ -507,16 +507,12 @@ export const updateCampaign = async (req, res) => {
       })
     }
 
-    // Authorization — org creator or SUPER_ADMIN
+    // Authorization — campaign creator, org creator, or SUPER_ADMIN
+    const isCampaignCreator = campaign.createdById === req.user.id
     const isOrgCreator =
       campaign.organization && campaign.organization.createdById === req.user.id
-    const isPublicCampaignCreator = !campaign.organizationId
 
-    if (
-      !isOrgCreator &&
-      !isPublicCampaignCreator &&
-      req.user.role !== 'SUPER_ADMIN'
-    ) {
+    if (!isCampaignCreator && !isOrgCreator && req.user.role !== 'SUPER_ADMIN') {
       return res.status(403).json({
         success: false,
         message: 'You are not authorized to update this campaign.'
@@ -616,10 +612,11 @@ export const updateCampaignStatus = async (req, res) => {
     }
 
     // Authorization
+    const isCampaignCreator = campaign.createdById === req.user.id
     const isOrgCreator =
       campaign.organization && campaign.organization.createdById === req.user.id
 
-    if (!isOrgCreator && req.user.role !== 'SUPER_ADMIN') {
+    if (!isCampaignCreator && !isOrgCreator && req.user.role !== 'SUPER_ADMIN') {
       return res.status(403).json({
         success: false,
         message: 'You are not authorized to change the status of this campaign.'
@@ -705,10 +702,12 @@ export const addCandidate = async (req, res) => {
       })
     }
 
+    // Authorization
+    const isCampaignCreator = campaign.createdById === req.user.id
     const isOrgCreator =
       campaign.organization && campaign.organization.createdById === req.user.id
 
-    if (!isOrgCreator && req.user.role !== 'SUPER_ADMIN') {
+    if (!isCampaignCreator && !isOrgCreator && req.user.role !== 'SUPER_ADMIN') {
       return res.status(403).json({
         success: false,
         message: 'You are not authorized to add candidates to this campaign.'
@@ -828,10 +827,11 @@ export const removeCandidate = async (req, res) => {
     }
 
     // Authorization
+    const isCampaignCreator = campaign.createdById === req.user.id
     const isOrgCreator =
       campaign.organization && campaign.organization.createdById === req.user.id
 
-    if (!isOrgCreator && req.user.role !== 'SUPER_ADMIN') {
+    if (!isCampaignCreator && !isOrgCreator && req.user.role !== 'SUPER_ADMIN') {
       return res.status(403).json({
         success: false,
         message:
@@ -905,10 +905,11 @@ export const addInvitedVoter = async (req, res) => {
     }
 
     // Authorization
+    const isCampaignCreator = campaign.createdById === req.user.id
     const isOrgCreator =
       campaign.organization && campaign.organization.createdById === req.user.id
 
-    if (!isOrgCreator && req.user.role !== 'SUPER_ADMIN') {
+    if (!isCampaignCreator && !isOrgCreator && req.user.role !== 'SUPER_ADMIN') {
       return res.status(403).json({
         success: false,
         message: 'You are not authorized to manage voters for this campaign.'
